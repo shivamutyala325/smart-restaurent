@@ -63,15 +63,6 @@ Order states
 - Paid (after payment button hit)
 - Cancelled (allowed while Pending)
 
-Environment variables
-Create `server/.env` (not committed):
-```
-ADMIN_NAME=admin
-ADMIN_PASSWORD=admin123
-PORT=4000
-MONGODB_URI=mongodb://localhost:27017/smart_restaurant
-CORS_ORIGIN=http://localhost:5173
-```
 
 Getting started
 Prerequisites
@@ -162,7 +153,6 @@ Roadmap ideas
 - Table/QR provisioning and multi-guest seating flows
 - Analytics dashboards (top items, duration, conversion, abandoned items)
 
-License
-MIT (or your preference)
+
 
 
