@@ -1,7 +1,6 @@
 const Session = require('../models/Session');
 const MenuItem = require('../models/MenuItem');
 
-// Simulated login: accepts phone and tableNumber, creates or reuses active session
 exports.loginOrCreate = async (req, res) => {
 	const { phone, tableNumber } = req.body;
 	if (!phone || !tableNumber) return res.status(400).json({ message: 'phone and tableNumber required' });
@@ -15,7 +14,10 @@ exports.loginOrCreate = async (req, res) => {
 
 exports.getSession = async (req, res) => {
 	const { id } = req.params;
-	const session = await Session.findById(id).populate('cart.menuItem').populate('keepForLater.menuItem').populate('orders.items.menuItem');
+	const session = await Session.findById(id)
+		.populate('cart.menuItem')
+		.populate('keepForLater.menuItem')
+		.populate('orders.items.menuItem');
 	if (!session) return res.status(404).json({ message: 'Not found' });
 	res.json(session);
 };
@@ -24,7 +26,11 @@ exports.addToCart = async (req, res) => {
 	const { id } = req.params;
 	const { menuItemId, quantity } = req.body;
 	const session = await Session.findById(id);
-	if (!session || !session.isActive) return res.status(404).json({ message: 'Session not found/active' });
+	if (!session || !session.isActive) return res.status(404).json({ message: 'Session not found or inactive' });
+
+	const menuItem = await MenuItem.findById(menuItemId);
+	if (!menuItem) return res.status(404).json({ message: 'Menu item not found' });
+	if (!menuItem.isAvailable) return res.status(400).json({ message: 'Menu item is not available' });
 
 	const existing = session.cart.find((c) => c.menuItem.toString() === menuItemId);
 	if (existing) existing.quantity += quantity || 1;
@@ -107,22 +113,9 @@ exports.cancelOrder = async (req, res) => {
 	if (['In-Progress', 'Ready', 'Served', 'Paid'].includes(order.status)) {
 		return res.status(400).json({ message: 'Cannot cancel at this stage' });
 	}
+	session.totalAmount -= order.totalAmount;
+	session.totalItemsOrdered -= order.items.reduce((s, it) => s + it.quantity, 0);
 	order.status = 'Cancelled';
-	await session.save();
-	res.json(session);
-};
-
-exports.markOrderServed = async (req, res) => {
-	const { id, orderId } = req.params;
-	const session = await Session.findById(id);
-	if (!session) return res.status(404).json({ message: 'Not found' });
-	const order = session.orders.id(orderId);
-	if (!order) return res.status(404).json({ message: 'Order not found' });
-	// Allow marking as Served from Pending/Ready/In-Progress
-	if (order.status === 'Paid' || order.status === 'Cancelled') {
-		return res.status(400).json({ message: 'Cannot change served state for this order' });
-	}
-	order.status = 'Served';
 	await session.save();
 	res.json(session);
 };
@@ -131,7 +124,6 @@ exports.simulatePaymentAndClose = async (req, res) => {
 	const { id } = req.params;
 	const session = await Session.findById(id);
 	if (!session || !session.isActive) return res.status(404).json({ message: 'Not found' });
-	// Mark all pending/served as Paid
 	session.orders.forEach((o) => {
 		if (o.status !== 'Cancelled' && o.status !== 'Paid') o.status = 'Paid';
 	});
@@ -145,5 +137,3 @@ exports.listActive = async (req, res) => {
 	const sessions = await Session.find({ isActive: true }).sort({ startedAt: -1 });
 	res.json(sessions);
 };
-
-
